@@ -116,7 +116,7 @@ const htmlContent = `
 export default function App() {
   // Hardcoded for convenience based on your current setup
   const [serverUrl, setServerUrl] = useState('ws://192.168.1.124:8000/ws/terminal');
-  const [token, setToken] = useState('a17f35ba3439431abc4169f1490ce971');
+  const [token, setToken] = useState('kali-remote-secret-token-123');
   const [isConnected, setIsConnected] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const webViewRef = useRef(null);

@@ -12,8 +12,8 @@ import uvicorn
 
 app = FastAPI()
 
-# Simple token-based authentication
-API_TOKEN = os.environ.get("TERMINAL_TOKEN", secrets.token_hex(16))
+# Use a fixed token for convenience, or read from environment
+API_TOKEN = os.environ.get("TERMINAL_TOKEN", "kali-remote-secret-token-123")
 print(f"Starting server with token: {API_TOKEN}")
 
 api_key_header = APIKeyHeader(name="X-Terminal-Token", auto_error=False)
