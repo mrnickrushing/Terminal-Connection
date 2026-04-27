@@ -69,6 +69,7 @@ const htmlContent = `
           
           ws.onerror = (error) => {
             term.writeln('\\r\\nWebSocket Error. Check if the IP is correct and the server is running.');
+            console.error('WebSocket Error:', error);
           };
 
           term.onData(data => {
@@ -78,6 +79,7 @@ const htmlContent = `
           });
         } catch (e) {
           term.writeln('\\r\\nFailed to create WebSocket: ' + e.message);
+          console.error('WebSocket Creation Error:', e);
         }
       }
 
