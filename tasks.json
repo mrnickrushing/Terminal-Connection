@@ -1,0 +1,27 @@
+[
+  {
+    "id": "kali-server-setup",
+    "status": "completed",
+    "content": "Set up Python WebSocket server for Kali Linux (using FastAPI and pty)"
+  },
+  {
+    "status": "completed",
+    "content": "Implement basic authentication for the WebSocket server",
+    "id": "kali-server-auth"
+  },
+  {
+    "id": "mobile-app-init",
+    "status": "completed",
+    "content": "Initialize React Native (Expo) project for the mobile app"
+  },
+  {
+    "status": "completed",
+    "content": "Implement Terminal UI in React Native (using WebView + xterm.js for robust ANSI support)",
+    "id": "mobile-app-ui"
+  },
+  {
+    "status": "completed",
+    "content": "Connect mobile app to Kali server via WebSockets",
+    "id": "mobile-app-ws"
+  }
+]
