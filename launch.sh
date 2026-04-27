@@ -24,9 +24,12 @@ sleep 2
 echo "[*] Starting Expo Mobile App Server..."
 cd "$DIR/mobile-app"
 
-# Clear Metro cache to avoid workspace issues
-rm -rf .metro-cache
-npx expo start --clear
+# Clear all Metro caches to avoid workspace issues
+rm -rf .metro-cache node_modules/.cache
+export WATCHMAN_DISABLE_CACHE=1
+
+# Run expo with explicit config to avoid workspace scanning
+npx expo start --clear --no-dev
 
 # When Expo is closed (Ctrl+C), kill the background server
 kill $SERVER_PID 2>/dev/null
