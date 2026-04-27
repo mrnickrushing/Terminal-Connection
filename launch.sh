@@ -7,25 +7,16 @@ echo "========================================"
 echo "  Kali Mobile Terminal Remote Launcher  "
 echo "========================================"
 
-# 1. Get the local IP address
-IP_ADDRESS=$(hostname -I | awk '{print $1}')
-echo "[*] Local IP Address: $IP_ADDRESS"
-
-# 2. Update the mobile app with the correct IP address automatically
-echo "[*] Updating mobile app configuration with IP: $IP_ADDRESS..."
-sed -i "s/ws:\/\/[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*:8000\/ws\/terminal/ws:\/\/$IP_ADDRESS:8000\/ws\/terminal/g" "$DIR/mobile-app/App.js"
-
-# 3. Start the Kali Server in the background
-echo "[*] Starting Kali WebSocket Server on port 8000..."
+# 1. Start the Kali Server in the background
+echo "[*] Starting Kali WebSocket Client (connecting to Relay)..."
 cd "$DIR/kali-server"
 ./start.sh &
 SERVER_PID=$!
 
-# 4. Start the Expo Mobile App server
+# 2. Start the Expo Mobile App server
 echo "[*] Starting Expo Mobile App Server..."
 cd "$DIR/mobile-app"
-# Force Expo to use the correct IP address
-REACT_NATIVE_PACKAGER_HOSTNAME=$IP_ADDRESS npx expo start --clear
+npx expo start --clear
 
 # When Expo is closed (Ctrl+C), kill the background server
 kill $SERVER_PID
