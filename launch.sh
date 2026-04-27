@@ -11,13 +11,17 @@ echo "========================================"
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
 echo "[*] Local IP Address: $IP_ADDRESS"
 
-# 2. Start the Kali Server in the background
+# 2. Update the mobile app with the correct IP address automatically
+echo "[*] Updating mobile app configuration with IP: $IP_ADDRESS..."
+sed -i "s/ws:\/\/[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*:8000\/ws\/terminal/ws:\/\/$IP_ADDRESS:8000\/ws\/terminal/g" "$DIR/mobile-app/App.js"
+
+# 3. Start the Kali Server in the background
 echo "[*] Starting Kali WebSocket Server on port 8000..."
 cd "$DIR/kali-server"
 ./start.sh &
 SERVER_PID=$!
 
-# 3. Start the Expo Mobile App server
+# 4. Start the Expo Mobile App server
 echo "[*] Starting Expo Mobile App Server..."
 cd "$DIR/mobile-app"
 # Force Expo to use the correct IP address
