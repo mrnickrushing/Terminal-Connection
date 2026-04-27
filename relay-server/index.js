@@ -15,8 +15,12 @@ let mobileClients = new Set();
 
 const API_TOKEN = process.env.TERMINAL_TOKEN || 'kali-remote-secret-token-123';
 
+console.log('=== Relay Server Starting ===');
+console.log('Token:', API_TOKEN);
+console.log('Process PID:', process.pid);
+
 app.get('/', (req, res) => {
-  res.send({
+  res.json({
     status: 'Relay Server is running',
     kaliConnected: kaliTerminal !== null,
     mobileClientsConnected: mobileClients.size
@@ -24,13 +28,14 @@ app.get('/', (req, res) => {
 });
 
 wss.on('connection', (ws, req) => {
-  console.log('New connection attempt from:', req.socket.remoteAddress);
+  console.log('[WS] New connection from:', req.socket.remoteAddress);
   
   let isKali = false;
   let isAuthenticated = false;
 
   ws.on('message', (message) => {
     const msgStr = message.toString();
+    console.log('[WS] Received message from', isKali ? 'Kali' : 'Mobile', ':', msgStr.substring(0, 50));
     
     // Handle Authentication
     if (!isAuthenticated) {
@@ -39,7 +44,7 @@ wss.on('connection', (ws, req) => {
         if (token === API_TOKEN) {
           isAuthenticated = true;
           ws.send('Authentication successful.\r\n');
-          console.log('Client authenticated successfully.');
+          console.log('[AUTH] Mobile client authenticated successfully.');
           return;
         } else {
           ws.send('Authentication failed.\r\n');
@@ -56,11 +61,12 @@ wss.on('connection', (ws, req) => {
           
           // If there's an old Kali connection, close it
           if (kaliTerminal) {
+            console.log('[KALI] Closing previous Kali connection.');
             kaliTerminal.close();
           }
           
           kaliTerminal = ws;
-          console.log('Kali Terminal connected and authenticated.');
+          console.log('[KALI] Kali Terminal connected and authenticated.');
           
           // Notify mobile clients
           mobileClients.forEach(client => {
@@ -70,6 +76,7 @@ wss.on('connection', (ws, req) => {
           });
           return;
         } else {
+          console.log('[AUTH] Kali auth failed - bad token');
           ws.close();
           return;
         }
@@ -91,7 +98,7 @@ wss.on('connection', (ws, req) => {
       // Message from Mobile -> Send to Kali
       if (!mobileClients.has(ws)) {
         mobileClients.add(ws);
-        console.log(`Mobile client joined. Total: ${mobileClients.size}`);
+        console.log(`[MOBILE] Client joined. Total: ${mobileClients.size}`);
       }
       
       if (kaliTerminal && kaliTerminal.readyState === WebSocket.OPEN) {
@@ -104,7 +111,7 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     if (isKali) {
-      console.log('Kali Terminal disconnected.');
+      console.log('[KALI] Kali Terminal disconnected.');
       kaliTerminal = null;
       mobileClients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
@@ -113,16 +120,32 @@ wss.on('connection', (ws, req) => {
       });
     } else {
       mobileClients.delete(ws);
-      console.log(`Mobile client disconnected. Total: ${mobileClients.size}`);
+      console.log(`[MOBILE] Mobile client disconnected. Total: ${mobileClients.size}`);
     }
   });
   
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    console.error('[WS] WebSocket error:', error);
   });
 });
 
 const PORT = process.env.PORT || 3000;
+
 server.listen(PORT, () => {
-  console.log(`Relay server listening on port ${PORT}`);
+  console.log(`[SERVER] Relay server listening on port ${PORT}`);
+  console.log(`[SERVER] Ready to accept connections`);
+});
+
+server.on('error', (error) => {
+  console.error('[SERVER] Server error:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
