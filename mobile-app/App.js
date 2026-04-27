@@ -51,30 +51,34 @@ const htmlContent = `
         
         term.writeln('Connecting to ' + url + '...');
         
-        ws = new WebSocket(url);
-        
-        ws.onopen = () => {
-          term.writeln('Connected. Authenticating...');
-          ws.send('auth:' + token);
-        };
-        
-        ws.onmessage = (event) => {
-          term.write(event.data);
-        };
-        
-        ws.onclose = () => {
-          term.writeln('\\r\\nConnection closed.');
-        };
-        
-        ws.onerror = (error) => {
-          term.writeln('\\r\\nWebSocket Error. Check if the IP is correct and the server is running.');
-        };
+        try {
+          ws = new WebSocket(url);
+          
+          ws.onopen = () => {
+            term.writeln('Connected. Authenticating...');
+            ws.send('auth:' + token);
+          };
+          
+          ws.onmessage = (event) => {
+            term.write(event.data);
+          };
+          
+          ws.onclose = (event) => {
+            term.writeln('\\r\\nConnection closed. Code: ' + event.code);
+          };
+          
+          ws.onerror = (error) => {
+            term.writeln('\\r\\nWebSocket Error. Check if the IP is correct and the server is running.');
+          };
 
-        term.onData(data => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
-          }
-        });
+          term.onData(data => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+            }
+          });
+        } catch (e) {
+          term.writeln('\\r\\nFailed to create WebSocket: ' + e.message);
+        }
       }
 
       // Listen for messages from React Native
