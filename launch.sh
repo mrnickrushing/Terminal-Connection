@@ -11,10 +11,10 @@ echo "========================================"
 export RELAY_URL="wss://terminal-connection-production.up.railway.app"
 echo "[*] Relay Server URL: $RELAY_URL"
 
-# 2. Start the Kali Server in the background
+# 2. Start the Kali Server in the background (with the environment variable)
 echo "[*] Starting Kali WebSocket Client (connecting to Relay)..."
 cd "$DIR/kali-server"
-./start.sh &
+RELAY_URL="$RELAY_URL" ./start.sh &
 SERVER_PID=$!
 
 # Wait a bit for the Kali server to start
