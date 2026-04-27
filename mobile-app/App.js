@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TextInput, Button, Text, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, TextInput, Button, Text, SafeAreaView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 const htmlContent = `
@@ -67,7 +67,7 @@ const htmlContent = `
         };
         
         ws.onerror = (error) => {
-          term.writeln('\\r\\nWebSocket Error.');
+          term.writeln('\\r\\nWebSocket Error. Check if the IP is correct and the server is running.');
         };
 
         term.onData(data => {
@@ -114,9 +114,11 @@ const htmlContent = `
 `;
 
 export default function App() {
-  const [serverUrl, setServerUrl] = useState('ws://192.168.1.100:8000/ws/terminal');
-  const [token, setToken] = useState('');
+  // Hardcoded for convenience based on your current setup
+  const [serverUrl, setServerUrl] = useState('ws://192.168.1.124:8000/ws/terminal');
+  const [token, setToken] = useState('a17f35ba3439431abc4169f1490ce971');
   const [isConnected, setIsConnected] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const webViewRef = useRef(null);
 
   const handleConnect = () => {
@@ -136,6 +138,7 @@ export default function App() {
         true;
       `);
       setIsConnected(true);
+      setShowSettings(false); // Hide settings when connecting
     }
   };
 
@@ -146,31 +149,42 @@ export default function App() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Kali Terminal Remote</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="ws://ip:port/ws/terminal"
-              value={serverUrl}
-              onChangeText={setServerUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Auth Token"
-              value={token}
-              onChangeText={setToken}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Button 
-              title={isConnected ? "Disconnect" : "Connect"} 
-              onPress={handleConnect} 
-              color={isConnected ? "#ff3b30" : "#007aff"}
-            />
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>Kali Terminal</Text>
+            <TouchableOpacity onPress={() => setShowSettings(!showSettings)}>
+              <Text style={styles.settingsBtn}>⚙️</Text>
+            </TouchableOpacity>
           </View>
+          
+          {showSettings && (
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="ws://ip:port/ws/terminal"
+                value={serverUrl}
+                onChangeText={setServerUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Auth Token"
+                value={token}
+                onChangeText={setToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          )}
+          
+          <TouchableOpacity 
+            style={[styles.connectBtn, isConnected ? styles.disconnectBtn : null]} 
+            onPress={handleConnect}
+          >
+            <Text style={styles.connectBtnText}>
+              {isConnected ? "Disconnect" : "Connect to Kali"}
+            </Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.terminalContainer}>
@@ -195,26 +209,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1e1e',
   },
   header: {
-    padding: 10,
+    padding: 15,
     backgroundColor: '#2d2d2d',
     borderBottomWidth: 1,
     borderBottomColor: '#3d3d3d',
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   title: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
+  },
+  settingsBtn: {
+    fontSize: 20,
   },
   inputContainer: {
     gap: 10,
+    marginBottom: 15,
   },
   input: {
     backgroundColor: '#fff',
     padding: 10,
     borderRadius: 5,
     fontSize: 14,
+  },
+  connectBtn: {
+    backgroundColor: '#007aff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  disconnectBtn: {
+    backgroundColor: '#ff3b30',
+  },
+  connectBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   terminalContainer: {
     flex: 1,
