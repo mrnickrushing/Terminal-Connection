@@ -81,6 +81,7 @@ const htmlContent = `
           };
 
           thisWs.onmessage = (event) => {
+            if (ws !== thisWs) return;
             term.write(event.data);
           };
 
