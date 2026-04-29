@@ -59,31 +59,39 @@ const htmlContent = `
       }
 
       function connect(url, token) {
+        // Null out onclose before closing so the stale socket can't fire
+        // a 'disconnected' notification after the new socket is already open
         if (ws) {
+          ws.onclose = null;
+          ws.onerror = null;
           ws.close();
         }
 
         term.writeln('Connecting to ' + url + '...');
 
         try {
-          ws = new WebSocket(url);
+          const thisWs = new WebSocket(url);
+          ws = thisWs;
 
-          ws.onopen = () => {
+          thisWs.onopen = () => {
+            if (ws !== thisWs) return;
             term.writeln('Connected. Authenticating...');
-            ws.send('auth:' + token);
+            thisWs.send('auth:' + token);
             notifyRN('connected', {});
           };
 
-          ws.onmessage = (event) => {
+          thisWs.onmessage = (event) => {
             term.write(event.data);
           };
 
-          ws.onclose = (event) => {
+          thisWs.onclose = (event) => {
+            if (ws !== thisWs) return;
             term.writeln('\\r\\nConnection closed. Code: ' + event.code);
             notifyRN('disconnected', {});
           };
 
-          ws.onerror = () => {
+          thisWs.onerror = () => {
+            if (ws !== thisWs) return;
             term.writeln('\\r\\nWebSocket Error. Check the URL and server status.');
             notifyRN('disconnected', {});
           };
@@ -121,9 +129,11 @@ export default function App() {
   const webViewRef = useRef(null);
 
   const sendToWebView = (payload) => {
-    const escaped = JSON.stringify(payload).replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+    // JSON.stringify(json) produces a properly escaped JS string literal,
+    // avoiding template literal injection if url/token contain ${...}
+    const json = JSON.stringify(payload);
     webViewRef.current?.injectJavaScript(`
-      window.dispatchEvent(new MessageEvent('message', { data: \`${escaped}\` }));
+      window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(json)} }));
       true;
     `);
   };
