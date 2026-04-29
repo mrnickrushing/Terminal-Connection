@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TextInput, Button, Text, SafeAreaView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { StyleSheet, View, TextInput, Text, SafeAreaView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 const htmlContent = `
@@ -44,62 +44,65 @@ const htmlContent = `
 
       let ws = null;
 
-      function connect(url, token) {
-        if (ws) {
-          ws.close();
+      // Register onData once — not inside connect() to avoid stacking handlers
+      term.onData(data => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
         }
-        
-        term.writeln('Connecting to ' + url + '...');
-        
-        try {
-          ws = new WebSocket(url);
-          
-          ws.onopen = () => {
-            term.writeln('Connected. Authenticating...');
-            ws.send('auth:' + token);
-          };
-          
-          ws.onmessage = (event) => {
-            term.write(event.data);
-          };
-          
-          ws.onclose = (event) => {
-            term.writeln('\\r\\nConnection closed. Code: ' + event.code);
-          };
-          
-          ws.onerror = (error) => {
-            term.writeln('\\r\\nWebSocket Error. Check if the IP is correct and the server is running.');
-            console.error('WebSocket Error:', error);
-          };
+      });
 
-          term.onData(data => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(data);
-            }
-          });
-        } catch (e) {
-          term.writeln('\\r\\nFailed to create WebSocket: ' + e.message);
-          console.error('WebSocket Creation Error:', e);
+      function notifyRN(type, payload) {
+        const msg = JSON.stringify({ type, ...payload });
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(msg);
         }
       }
 
-      // Listen for messages from React Native
-      document.addEventListener('message', function(event) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'connect') {
-            connect(data.url, data.token);
-          } else if (data.type === 'disconnect') {
-            if (ws) {
-              ws.close();
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing message', e);
+      function connect(url, token) {
+        // Null out onclose before closing so the stale socket can't fire
+        // a 'disconnected' notification after the new socket is already open
+        if (ws) {
+          ws.onclose = null;
+          ws.onerror = null;
+          ws.close();
         }
-      });
-      
-      // For iOS
+
+        term.writeln('Connecting to ' + url + '...');
+
+        try {
+          const thisWs = new WebSocket(url);
+          ws = thisWs;
+
+          thisWs.onopen = () => {
+            if (ws !== thisWs) return;
+            term.writeln('Connected. Authenticating...');
+            thisWs.send('auth:' + token);
+            notifyRN('connected', {});
+          };
+
+          thisWs.onmessage = (event) => {
+            if (ws !== thisWs) return;
+            term.write(event.data);
+          };
+
+          thisWs.onclose = (event) => {
+            if (ws !== thisWs) return;
+            term.writeln('\\r\\nConnection closed. Code: ' + event.code);
+            notifyRN('disconnected', {});
+          };
+
+          thisWs.onerror = () => {
+            if (ws !== thisWs) return;
+            term.writeln('\\r\\nWebSocket Error. Check the URL and server status.');
+            notifyRN('disconnected', {});
+          };
+        } catch (e) {
+          term.writeln('\\r\\nFailed to create WebSocket: ' + e.message);
+          notifyRN('disconnected', {});
+        }
+      }
+
+      // Use window.addEventListener only — covers both iOS and Android in react-native-webview
       window.addEventListener('message', function(event) {
         try {
           const data = JSON.parse(event.data);
@@ -120,71 +123,89 @@ const htmlContent = `
 `;
 
 export default function App() {
-  // Hardcoded for convenience based on your current setup
   const [serverUrl, setServerUrl] = useState('wss://terminal-connection-production.up.railway.app');
   const [token, setToken] = useState('kali-remote-secret-token-123');
   const [isConnected, setIsConnected] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const webViewRef = useRef(null);
 
+  const sendToWebView = (payload) => {
+    // JSON.stringify(json) produces a properly escaped JS string literal,
+    // avoiding template literal injection if url/token contain ${...}
+    const json = JSON.stringify(payload);
+    webViewRef.current?.injectJavaScript(`
+      window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(json)} }));
+      true;
+    `);
+  };
+
   const handleConnect = () => {
     if (isConnected) {
-      webViewRef.current?.injectJavaScript(`
-        window.postMessage(JSON.stringify({ type: 'disconnect' }), '*');
-        true;
-      `);
+      sendToWebView({ type: 'disconnect' });
       setIsConnected(false);
     } else {
-      webViewRef.current?.injectJavaScript(`
-        window.postMessage(JSON.stringify({ 
-          type: 'connect', 
-          url: '${serverUrl}',
-          token: '${token}'
-        }), '*');
-        true;
-      `);
-      setIsConnected(true);
-      setShowSettings(false); // Hide settings when connecting
+      sendToWebView({ type: 'connect', url: serverUrl, token });
+      setShowSettings(false);
+    }
+  };
+
+  const handleWebViewMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'connected') {
+        setIsConnected(true);
+      } else if (data.type === 'disconnected') {
+        setIsConnected(false);
+      }
+    } catch (e) {
+      // ignore non-JSON messages
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Kali Terminal</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Kali Terminal</Text>
+              <View style={[styles.statusDot, isConnected ? styles.statusDotConnected : styles.statusDotDisconnected]} />
+            </View>
             <TouchableOpacity onPress={() => setShowSettings(!showSettings)}>
               <Text style={styles.settingsBtn}>⚙️</Text>
             </TouchableOpacity>
           </View>
-          
+
           {showSettings && (
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="ws://ip:port/ws/terminal"
+                placeholder="wss://relay-server-url"
+                placeholderTextColor="#999"
                 value={serverUrl}
                 onChangeText={setServerUrl}
                 autoCapitalize="none"
                 autoCorrect={false}
+                keyboardType="url"
               />
               <TextInput
                 style={styles.input}
                 placeholder="Auth Token"
+                placeholderTextColor="#999"
                 value={token}
                 onChangeText={setToken}
                 autoCapitalize="none"
                 autoCorrect={false}
+                secureTextEntry={true}
               />
             </View>
           )}
-          
-          <TouchableOpacity 
-            style={[styles.connectBtn, isConnected ? styles.disconnectBtn : null]} 
+
+          <TouchableOpacity
+            style={[styles.connectBtn, isConnected ? styles.disconnectBtn : null]}
             onPress={handleConnect}
           >
             <Text style={styles.connectBtnText}>
@@ -192,7 +213,7 @@ export default function App() {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.terminalContainer}>
           <WebView
             ref={webViewRef}
@@ -202,6 +223,7 @@ export default function App() {
             bounces={false}
             keyboardDisplayRequiresUserAction={false}
             hideKeyboardAccessoryView={true}
+            onMessage={handleWebViewMessage}
           />
         </View>
       </KeyboardAvoidingView>
@@ -226,10 +248,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusDotConnected: {
+    backgroundColor: '#30d158',
+  },
+  statusDotDisconnected: {
+    backgroundColor: '#636366',
   },
   settingsBtn: {
     fontSize: 20,
@@ -239,7 +277,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#3d3d3d',
+    color: '#fff',
     padding: 10,
     borderRadius: 5,
     fontSize: 14,
