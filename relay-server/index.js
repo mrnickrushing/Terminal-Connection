@@ -19,7 +19,7 @@ const API_TOKEN = process.env.TERMINAL_TOKEN || 'kali-remote-secret-token-123';
 const PORT = process.env.PORT || 3000;
 
 console.log('=== Relay Server Starting (Socket.io) ===');
-console.log('Token:', API_TOKEN ? '[set]' : '[NOT SET - using default]');
+console.log('Token:', process.env.TERMINAL_TOKEN ? '[set]' : '[NOT SET - using default]');
 console.log('Port:', PORT);
 
 app.get('/', (req, res) => {
