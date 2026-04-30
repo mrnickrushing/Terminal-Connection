@@ -60,6 +60,12 @@ const htmlContent = `
       }
 
       function connect(url, token) {
+        if (typeof io === 'undefined') {
+          term.writeln('\\r\\nError: Socket.IO client failed to load. Check network connection.');
+          notifyRN('disconnected', {});
+          return;
+        }
+
         if (socket) {
           socket.off();
           socket.disconnect();
