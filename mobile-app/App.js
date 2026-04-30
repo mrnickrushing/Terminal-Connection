@@ -10,7 +10,6 @@ const htmlContent = `
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.8.0/lib/addon-fit.js"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <style>
       body {
         margin: 0;
@@ -59,13 +58,19 @@ const htmlContent = `
         }
       }
 
-      function connect(url, token) {
-        if (typeof io === 'undefined') {
+      function loadSocketIO(callback) {
+        if (typeof io !== 'undefined') { callback(); return; }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.socket.io/4.7.4/socket.io.min.js';
+        script.onload = callback;
+        script.onerror = () => {
           term.writeln('\\r\\nError: Socket.IO client failed to load. Check network connection.');
           notifyRN('disconnected', {});
-          return;
-        }
+        };
+        document.head.appendChild(script);
+      }
 
+      function connect(url, token) {
         if (socket) {
           socket.off();
           socket.disconnect();
@@ -76,6 +81,7 @@ const htmlContent = `
         const httpUrl = url.replace(/^wss:\\/\\//, 'https://').replace(/^ws:\\/\\//, 'http://');
         term.writeln('Connecting to ' + httpUrl + '...');
 
+        loadSocketIO(() => {
         try {
           const thisSocket = io(httpUrl, { transports: ['websocket', 'polling'] });
           socket = thisSocket;
@@ -107,6 +113,7 @@ const htmlContent = `
           term.writeln('\\r\\nFailed to connect: ' + e.message);
           notifyRN('disconnected', {});
         }
+        }); // loadSocketIO
       }
 
       // Use window.addEventListener only — covers both iOS and Android in react-native-webview
