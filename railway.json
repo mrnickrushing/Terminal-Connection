@@ -1,11 +1,7 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "deploy": {
-<<<<<<< HEAD
-    "startCommand": "cd relay-server && npm start",
-=======
     "startCommand": "npm start",
->>>>>>> 3d81abc059c8bc990f330c3d3c8a4115f7d9e2a9
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5
   }
