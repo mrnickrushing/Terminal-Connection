@@ -10,6 +10,7 @@ const htmlContent = `
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.8.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <style>
       body {
         margin: 0;
@@ -42,12 +43,12 @@ const htmlContent = `
         fitAddon.fit();
       });
 
-      let ws = null;
+      let socket = null;
 
       // Register onData once — not inside connect() to avoid stacking handlers
       term.onData(data => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
+        if (socket && socket.connected) {
+          socket.emit('data', data);
         }
       });
 
@@ -59,45 +60,51 @@ const htmlContent = `
       }
 
       function connect(url, token) {
-        // Null out onclose before closing so the stale socket can't fire
-        // a 'disconnected' notification after the new socket is already open
-        if (ws) {
-          ws.onclose = null;
-          ws.onerror = null;
-          ws.close();
+        if (typeof io === 'undefined') {
+          term.writeln('\\r\\nError: Socket.IO client failed to load. Check network connection.');
+          notifyRN('disconnected', {});
+          return;
         }
 
-        term.writeln('Connecting to ' + url + '...');
+        if (socket) {
+          socket.off();
+          socket.disconnect();
+          socket = null;
+        }
+
+        // Socket.io needs http(s):// not ws(s)://
+        const httpUrl = url.replace(/^wss:\\/\\//, 'https://').replace(/^ws:\\/\\//, 'http://');
+        term.writeln('Connecting to ' + httpUrl + '...');
 
         try {
-          const thisWs = new WebSocket(url);
-          ws = thisWs;
+          const thisSocket = io(httpUrl, { transports: ['websocket', 'polling'] });
+          socket = thisSocket;
 
-          thisWs.onopen = () => {
-            if (ws !== thisWs) return;
+          thisSocket.on('connect', () => {
+            if (socket !== thisSocket) return;
             term.writeln('Connected. Authenticating...');
-            thisWs.send('auth:' + token);
+            thisSocket.emit('auth', token);
             notifyRN('connected', {});
-          };
+          });
 
-          thisWs.onmessage = (event) => {
-            if (ws !== thisWs) return;
-            term.write(event.data);
-          };
+          thisSocket.on('data', (msg) => {
+            if (socket !== thisSocket) return;
+            term.write(msg);
+          });
 
-          thisWs.onclose = (event) => {
-            if (ws !== thisWs) return;
-            term.writeln('\\r\\nConnection closed. Code: ' + event.code);
+          thisSocket.on('disconnect', () => {
+            if (socket !== thisSocket) return;
+            term.writeln('\\r\\nDisconnected.');
             notifyRN('disconnected', {});
-          };
+          });
 
-          thisWs.onerror = () => {
-            if (ws !== thisWs) return;
-            term.writeln('\\r\\nWebSocket Error. Check the URL and server status.');
+          thisSocket.on('connect_error', (err) => {
+            if (socket !== thisSocket) return;
+            term.writeln('\\r\\nConnection error: ' + err.message);
             notifyRN('disconnected', {});
-          };
+          });
         } catch (e) {
-          term.writeln('\\r\\nFailed to create WebSocket: ' + e.message);
+          term.writeln('\\r\\nFailed to connect: ' + e.message);
           notifyRN('disconnected', {});
         }
       }
@@ -109,8 +116,8 @@ const htmlContent = `
           if (data.type === 'connect') {
             connect(data.url, data.token);
           } else if (data.type === 'disconnect') {
-            if (ws) {
-              ws.close();
+            if (socket) {
+              socket.disconnect();
             }
           }
         } catch (e) {
