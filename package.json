@@ -1,0 +1,6 @@
+{
+  "name": "kali-mobile-terminal-remote",
+  "version": "1.0.0",
+  "description": "Remote terminal access to Kali Linux machines from iOS via relay server",
+  "private": true
+}
